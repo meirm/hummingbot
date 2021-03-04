@@ -22,13 +22,13 @@ class OpenOrdersCommand:
     def open_orders(self,  # type: HummingbotApplication
                     full_report: bool):
         if threading.current_thread() != threading.main_thread():
-            self.ev_loop.call_soon_threadsafe(self.open_orders, full_report)
+            self.ev_loop.call_soon_threadsafe(self.open_orders, full_report) # FIXME: add option to cancel open trades.
             return
         safe_ensure_future(self.open_orders_report(full_report))
 
     async def open_orders_report(self,  # type: HummingbotApplication
                                  full_report: bool):
-        exchange = "binance"
+        exchange = "binance" # FIXME: add support for papertrade
         connector = await self.get_binance_connector()
         if connector is None:
             self._notify("This command supports only binance (for now), please first connect to binance.")

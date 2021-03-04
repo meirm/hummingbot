@@ -3,7 +3,6 @@ from decimal import Decimal
 from hummingbot.client.config.config_var import ConfigVar
 from hummingbot.client.config.config_validators import (
     validate_exchange,
-    validate_derivative,
     validate_market_trading_pair,
     validate_bool,
     validate_decimal,
@@ -13,45 +12,41 @@ from hummingbot.client.settings import (
     required_exchanges,
     EXAMPLE_PAIRS,
 )
-
+from hummingbot.client.config.global_config_map import (
+    using_bamboo_coordinator_mode,
+    using_exchange
+)
 from hummingbot.client.config.config_helpers import (
     minimum_order_amount,
-    parse_cvar_value
 )
 from typing import Optional
 
-
 def maker_trading_pair_prompt():
-    derivative = perpetual_market_making_config_map.get("derivative").value
-    example = EXAMPLE_PAIRS.get(derivative)
+    exchange = pure_market_making_config_map.get("exchange").value
+    example = EXAMPLE_PAIRS.get(exchange)
     return "Enter the token trading pair you would like to trade on %s%s >>> " \
-           % (derivative, f" (e.g. {example})" if example else "")
+           % (exchange, f" (e.g. {example})" if example else "")
 
 
 # strategy specific validators
-def validate_derivative_trading_pair(value: str) -> Optional[str]:
-    derivative = perpetual_market_making_config_map.get("derivative").value
-    return validate_market_trading_pair(derivative, value)
-
-
-def validate_derivative_position_mode(value: str) -> Optional[str]:
-    if value not in ["One-way", "Hedge"]:
-        return "Position mode can either be One-way or Hedge mode"
+def validate_exchange_trading_pair(value: str) -> Optional[str]:
+    exchange = pure_market_making_config_map.get("exchange").value
+    return validate_market_trading_pair(exchange, value)
 
 
 def order_amount_prompt() -> str:
-    derivative = perpetual_market_making_config_map["derivative"].value
-    trading_pair = perpetual_market_making_config_map["market"].value
+    exchange = pure_market_making_config_map["exchange"].value
+    trading_pair = pure_market_making_config_map["market"].value
     base_asset, quote_asset = trading_pair.split("-")
-    min_amount = minimum_order_amount(derivative, trading_pair)
+    min_amount = minimum_order_amount(exchange, trading_pair)
     return f"What is the amount of {base_asset} per order? (minimum {min_amount}) >>> "
 
 
 def validate_order_amount(value: str) -> Optional[str]:
     try:
-        derivative = perpetual_market_making_config_map["derivative"].value
-        trading_pair = perpetual_market_making_config_map["market"].value
-        min_amount = minimum_order_amount(derivative, trading_pair)
+        exchange = pure_market_making_config_map["exchange"].value
+        trading_pair = pure_market_making_config_map["market"].value
+        min_amount = minimum_order_amount(exchange, trading_pair)
         if Decimal(value) < min_amount:
             return f"Order amount must be at least {min_amount}."
     except Exception:
@@ -65,34 +60,33 @@ def validate_price_source(value: str) -> Optional[str]:
 
 def on_validate_price_source(value: str):
     if value != "external_market":
-        perpetual_market_making_config_map["price_source_derivative"].value = None
-        perpetual_market_making_config_map["price_source_market"].value = None
-        perpetual_market_making_config_map["take_if_crossed"].value = None
+        pure_market_making_config_map["price_source_exchange"].value = None
+        pure_market_making_config_map["price_source_market"].value = None
+        pure_market_making_config_map["take_if_crossed"].value = None
     if value != "custom_api":
-        perpetual_market_making_config_map["price_source_custom_api"].value = None
+        pure_market_making_config_map["price_source_custom_api"].value = None
     else:
-        perpetual_market_making_config_map["price_type"].value = None
+        pure_market_making_config_map["price_type"].value = None
 
 
 def price_source_market_prompt() -> str:
-    external_market = perpetual_market_making_config_map.get("price_source_derivative").value
+    external_market = pure_market_making_config_map.get("price_source_exchange").value
     return f'Enter the token trading pair on {external_market} >>> '
 
 
-def validate_price_source_derivative(value: str) -> Optional[str]:
-    if value == perpetual_market_making_config_map.get("derivative").value:
-        return "Price source derivative cannot be the same as maker derivative."
-    if validate_derivative(value) is not None and validate_exchange(value) is not None:
-        return "Price must must be a valid exchange or derivative connector."
+def validate_price_source_exchange(value: str) -> Optional[str]:
+    if value == pure_market_making_config_map.get("exchange").value:
+        return "Price source exchange cannot be the same as maker exchange."
+    return validate_exchange(value)
 
 
-def on_validated_price_source_derivative(value: str):
+def on_validated_price_source_exchange(value: str):
     if value is None:
-        perpetual_market_making_config_map["price_source_market"].value = None
+        pure_market_making_config_map["price_source_market"].value = None
 
 
 def validate_price_source_market(value: str) -> Optional[str]:
-    market = perpetual_market_making_config_map.get("price_source_derivative").value
+    market = pure_market_making_config_map.get("price_source_exchange").value
     return validate_market_trading_pair(market, value)
 
 
@@ -105,49 +99,84 @@ def validate_price_floor_ceiling(value: str) -> Optional[str]:
         return "Value must be more than 0 or -1 to disable this feature."
 
 
-def validate_take_if_crossed(value: str) -> Optional[str]:
-    err_msg = validate_bool(value)
-    if err_msg is not None:
-        return err_msg
-    price_source_enabled = perpetual_market_making_config_map["price_source_enabled"].value
-    take_if_crossed = parse_cvar_value(perpetual_market_making_config_map["take_if_crossed"], value)
-    if take_if_crossed and not price_source_enabled:
-        return "You can enable this feature only when external pricing source for mid-market price is used."
-
-
-def derivative_on_validated(value: str):
+def exchange_on_validated(value: str):
     required_exchanges.append(value)
 
 
-perpetual_market_making_config_map = {
+pure_market_making_config_map = {
     "strategy":
         ConfigVar(key="strategy",
                   prompt=None,
-                  default="perpetual_market_making"),
-    "derivative":
-        ConfigVar(key="derivative",
-                  prompt="Enter your maker derivative name >>> ",
-                  validator=validate_derivative,
-                  on_validated=derivative_on_validated,
+                  default="pure_market_making"),
+    "exchange":
+        ConfigVar(key="exchange",
+                  prompt="Enter your maker exchange name >>> ",
+                  validator=validate_exchange,
+                  on_validated=exchange_on_validated,
                   prompt_on_new=True),
     "market":
         ConfigVar(key="market",
                   prompt=maker_trading_pair_prompt,
-                  validator=validate_derivative_trading_pair,
+                  validator=validate_exchange_trading_pair,
                   prompt_on_new=True),
-    "leverage":
-        ConfigVar(key="leverage",
-                  prompt="How much leverage do you want to use? "
-                         "(Binance Perpetual supports up to 75X for most pairs) >>> ",
+    "interval":
+        ConfigVar(key="interval",
+                  prompt="Interim in secs which to pick historical mid price samples from (default: 10)? >>> ",
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=0, inclusive=False),
-                  prompt_on_new=True),
-    "position_mode":
-        ConfigVar(key="position_mode",
-                  prompt="Which position mode do you want to use? (One-way/Hedge) >>> ",
-                  validator=validate_derivative_position_mode,
-                  type_str="str",
-                  default="One-way",
+                  default=10),
+    "short_period":
+        ConfigVar(key="short_period",
+                  prompt="How many interval to pick the samples for the average short term volatility calculation (default: 7)? >>> ",
+                  type_str="int",
+                  validator=lambda v: validate_int(v, min_value=0, inclusive=False),
+                  default=7),
+    "medium_period":
+        ConfigVar(key="medium_period",
+                  prompt="How many interval to pick the samples for the average medium term volatility calculation (default: 25)? >>> ",
+                  type_str="int",
+                  validator=lambda v: validate_int(v, min_value=0, inclusive=False),
+                  default=25),
+    "long_period":
+        ConfigVar(key="long_period",
+                  prompt="How many interval to pick the samples for the average long term volatility calculation (default: 99)? >>> ",
+                  type_str="int",
+                  validator=lambda v: validate_int(v, min_value=0, inclusive=False),
+                  default=99),
+    "bootstrap_short_period_moving_average":
+        ConfigVar(key="bootstrap_short_period_moving_average",
+                  prompt="What is Moving average price for the short period? ",
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=True),
+                  default=Decimal("1"),
+                  ),
+    "bootstrap_medium_period_moving_average":
+        ConfigVar(key="bootstrap_medium_period_moving_average",
+                  prompt="What is Moving average price for the medium period? ",
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=True),
+                  default=Decimal("1"),
+                  ),
+    "bootstrap_long_period_moving_average":
+        ConfigVar(key="bootstrap_long_period_moving_average",
+                  prompt="What is Moving average price for the long period? ",
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=True),
+                  default=Decimal("1"),
+                  ),
+    "apply_spread_volatility_enabled":
+        ConfigVar(key="apply_spread_volatility_enabled",
+                  prompt="Would you like to enlarge the spread according to short and medium volatility? (Yes/No) >>> ",
+                  type_str="bool",
+                  default=False,
+                  prompt_on_new=True,
+                  validator=validate_bool),
+    "trend_spread_shift_prc":
+        ConfigVar(key="trend_spread_shift_prc",
+                  prompt="On trending market, how much do you want to shift "
+                         "the spreads? (Enter 1 to indicate 1%) >>> ",
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, 0, 100, inclusive=True),
                   prompt_on_new=True),
     "bid_spread":
         ConfigVar(key="bid_spread",
@@ -174,9 +203,20 @@ perpetual_market_making_config_map = {
         ConfigVar(key="order_refresh_time",
                   prompt="How often do you want to cancel and replace bids and asks "
                          "(in seconds)? >>> ",
+                  required_if=lambda: not (using_exchange("radar_relay")() or
+                                           (using_exchange("bamboo_relay")() and not using_bamboo_coordinator_mode())),
                   type_str="float",
                   validator=lambda v: validate_decimal(v, 0, inclusive=False),
                   prompt_on_new=True),
+    "max_order_age":
+        ConfigVar(key="max_order_age",
+                  prompt="How long do you want to cancel and replace bids and asks "
+                         "with the same price (in seconds)? >>> ",
+                  required_if=lambda: not (using_exchange("radar_relay")() or
+                                           (using_exchange("bamboo_relay")() and not using_bamboo_coordinator_mode())),
+                  type_str="float",
+                  default=Decimal("1800"),
+                  validator=lambda v: validate_decimal(v, 0, inclusive=False)),
     "order_refresh_tolerance_pct":
         ConfigVar(key="order_refresh_tolerance_pct",
                   prompt="Enter the percent change in price needed to refresh orders at each cycle "
@@ -189,61 +229,6 @@ perpetual_market_making_config_map = {
                   prompt=order_amount_prompt,
                   type_str="decimal",
                   validator=validate_order_amount,
-                  prompt_on_new=True),
-    "position_management":
-        ConfigVar(key="position_management",
-                  prompt="How would you like to manage your positions? (Profit_taking/Trailing_stop) >>> ",
-                  type_str="str",
-                  default="Profit_taking",
-                  validator=lambda s: None if s in {"Profit_taking", "Trailing_stop"} else
-                  "Invalid position management.",
-                  prompt_on_new=True),
-    "long_profit_taking_spread":
-        ConfigVar(key="long_profit_taking_spread",
-                  prompt="At what spread from the entry price do you want to place a short order to reduce position? (Enter 1 for 1%) >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("position_management").value == "Profit_taking",
-                  type_str="decimal",
-                  default=Decimal("0"),
-                  validator=lambda v: validate_decimal(v, 0, 100, True),
-                  prompt_on_new=True),
-    "short_profit_taking_spread":
-        ConfigVar(key="short_profit_taking_spread",
-                  prompt="At what spread from the position entry price do you want to place a long order to reduce position? (Enter 1 for 1%) >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("position_management").value == "Profit_taking",
-                  type_str="decimal",
-                  default=Decimal("0"),
-                  validator=lambda v: validate_decimal(v, 0, 100, True),
-                  prompt_on_new=True),
-    "ts_activation_spread":
-        ConfigVar(key="ts_activation_spread",
-                  prompt="At what spread from the position entry price do you want the bot to start trailing? (Enter 1 for 1%) >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("position_management").value == "Trailing_stop",
-                  type_str="decimal",
-                  default=Decimal("0"),
-                  validator=lambda v: validate_decimal(v, 0, 100, True),
-                  prompt_on_new=True),
-    "ts_callback_rate":
-        ConfigVar(key="ts_callback_rate",
-                  prompt="At what spread away from the trailing peak price do you want positions to remain open before they're closed? (Enter 1 for 1%) >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("position_management").value == "Trailing_stop",
-                  type_str="decimal",
-                  default=Decimal("0"),
-                  validator=lambda v: validate_decimal(v, 0, 100, True),
-                  prompt_on_new=True),
-    "stop_loss_spread":
-        ConfigVar(key="stop_loss_spread",
-                  prompt="At what spread from position entry price do you want to place stop_loss order? (Enter 1 for 1%) >>> ",
-                  type_str="decimal",
-                  default=Decimal("0"),
-                  validator=lambda v: validate_decimal(v, 0, 101, False),
-                  prompt_on_new=True),
-    "close_position_order_type":
-        ConfigVar(key="close_position_order_type",
-                  prompt="What order type do you want trailing stop and/or stop loss features to use for closing positions? (LIMIT/MARKET) >>> ",
-                  type_str="str",
-                  default="LIMIT",
-                  validator=lambda s: None if s in {"LIMIT", "MARKET"} else
-                  "Invalid order type.",
                   prompt_on_new=True),
     "price_ceiling":
         ConfigVar(key="price_ceiling",
@@ -264,18 +249,19 @@ perpetual_market_making_config_map = {
                   prompt="Would you like to use the ping pong feature and alternate between buy and sell orders after fills? (Yes/No) >>> ",
                   type_str="bool",
                   default=False,
+                  prompt_on_new=True,
                   validator=validate_bool),
     "order_levels":
         ConfigVar(key="order_levels",
                   prompt="How many orders do you want to place on both sides? >>> ",
                   type_str="int",
-                  validator=lambda v: validate_int(v, min_value=0, inclusive=True),
+                  validator=lambda v: validate_int(v, min_value=-1, inclusive=False),
                   default=1),
     "order_level_amount":
         ConfigVar(key="order_level_amount",
                   prompt="How much do you want to increase or decrease the order size for each "
                          "additional order? (decrease < 0 > increase) >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("order_levels").value > 1,
+                  required_if=lambda: pure_market_making_config_map.get("order_levels").value > 1,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v),
                   default=0),
@@ -283,10 +269,38 @@ perpetual_market_making_config_map = {
         ConfigVar(key="order_level_spread",
                   prompt="Enter the price increments (as percentage) for subsequent "
                          "orders? (Enter 1 to indicate 1%) >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("order_levels").value > 1,
+                  required_if=lambda: pure_market_making_config_map.get("order_levels").value > 1,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=False),
                   default=Decimal("1")),
+    "inventory_skew_enabled":
+        ConfigVar(key="inventory_skew_enabled",
+                  prompt="Would you like to enable inventory skew? (Yes/No) >>> ",
+                  type_str="bool",
+                  default=False,
+                  validator=validate_bool),
+    "inventory_target_base_pct":
+        ConfigVar(key="inventory_target_base_pct",
+                  prompt="What is your target base asset percentage? Enter 50 for 50% >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("inventory_skew_enabled").value,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, 0, 100),
+                  default=Decimal("50")),
+    "inventory_range_multiplier":
+        ConfigVar(key="inventory_range_multiplier",
+                  prompt="What is your tolerable range of inventory around the target, "
+                         "expressed in multiples of your total order size? ",
+                  required_if=lambda: pure_market_making_config_map.get("inventory_skew_enabled").value,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=0, inclusive=False),
+                  default=Decimal("1")),
+    "inventory_price":
+        ConfigVar(key="inventory_price",
+                  prompt="What is the price of your base asset inventory? ",
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=True),
+                  default=Decimal("1"),
+                  ),
     "filled_order_delay":
         ConfigVar(key="filled_order_delay",
                   prompt="How long do you want to wait before placing the next order "
@@ -304,7 +318,7 @@ perpetual_market_making_config_map = {
         ConfigVar(key="hanging_orders_cancel_pct",
                   prompt="At what spread percentage (from mid price) will hanging orders be canceled? "
                          "(Enter 1 to indicate 1%) >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("hanging_orders_enabled").value,
+                  required_if=lambda: pure_market_making_config_map.get("hanging_orders_enabled").value,
                   type_str="decimal",
                   default=Decimal("10"),
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=False)),
@@ -319,7 +333,7 @@ perpetual_market_making_config_map = {
                   prompt="How deep do you want to go into the order book for calculating "
                          "the top ask, ignoring dust orders on the top "
                          "(expressed in base asset amount)? >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("order_optimization_enabled").value,
+                  required_if=lambda: pure_market_making_config_map.get("order_optimization_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=0),
                   default=0),
@@ -328,7 +342,7 @@ perpetual_market_making_config_map = {
                   prompt="How deep do you want to go into the order book for calculating "
                          "the top bid, ignoring dust orders on the top "
                          "(expressed in base asset amount)? >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("order_optimization_enabled").value,
+                  required_if=lambda: pure_market_making_config_map.get("order_optimization_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=0),
                   default=0),
@@ -347,40 +361,43 @@ perpetual_market_making_config_map = {
                   on_validated=on_validate_price_source),
     "price_type":
         ConfigVar(key="price_type",
-                  prompt="Which price type to use? (mid_price/last_price/last_own_trade_price/best_bid/best_ask) >>> ",
+                  prompt="Which price type to use? ("
+                         "mid_price/last_price/last_own_trade_price/best_bid/best_ask/inventory_cost) >>> ",
                   type_str="str",
-                  required_if=lambda: perpetual_market_making_config_map.get("price_source").value != "custom_api",
+                  required_if=lambda: pure_market_making_config_map.get("price_source").value != "custom_api",
                   default="mid_price",
                   validator=lambda s: None if s in {"mid_price",
                                                     "last_price",
                                                     "last_own_trade_price",
                                                     "best_bid",
-                                                    "best_ask"} else
+                                                    "best_ask",
+                                                    "inventory_cost",
+                                                    } else
                   "Invalid price type."),
-    "price_source_derivative":
-        ConfigVar(key="price_source_derivative",
-                  prompt="Enter external price source connector name or derivative name >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("price_source").value == "external_market",
+    "price_source_exchange":
+        ConfigVar(key="price_source_exchange",
+                  prompt="Enter external price source exchange name >>> ",
+                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "external_market",
                   type_str="str",
-                  validator=validate_price_source_derivative,
-                  on_validated=on_validated_price_source_derivative),
+                  validator=validate_price_source_exchange,
+                  on_validated=on_validated_price_source_exchange),
     "price_source_market":
         ConfigVar(key="price_source_market",
                   prompt=price_source_market_prompt,
-                  required_if=lambda: perpetual_market_making_config_map.get("price_source").value == "external_market",
+                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "external_market",
                   type_str="str",
                   validator=validate_price_source_market),
     "take_if_crossed":
         ConfigVar(key="take_if_crossed",
-                  prompt="Do you want to take the best order if orders cross the orderbook? (Yes/No) >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get(
+                  prompt="Do you want to take the best order if orders cross the orderbook? ((Yes/No) >>> ",
+                  required_if=lambda: pure_market_making_config_map.get(
                       "price_source").value == "external_market",
                   type_str="bool",
                   validator=validate_bool),
     "price_source_custom_api":
         ConfigVar(key="price_source_custom_api",
                   prompt="Enter pricing API URL >>> ",
-                  required_if=lambda: perpetual_market_making_config_map.get("price_source").value == "custom_api",
+                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "custom_api",
                   type_str="str"),
     "order_override":
         ConfigVar(key="order_override",

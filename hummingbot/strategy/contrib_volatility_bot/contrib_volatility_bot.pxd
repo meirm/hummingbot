@@ -4,10 +4,10 @@ from libc.stdint cimport int64_t
 from hummingbot.strategy.strategy_base cimport StrategyBase
 
 
-cdef class PureMarketMakingStrategy(StrategyBase):
+cdef class VolatilityBotStrategy(StrategyBase):
     cdef:
         object _market_info
-
+        bint _increase_base
         object _bid_spread
         object _ask_spread
         object _bid_trail_stop_loss
@@ -16,6 +16,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _bid_trail_lowest_price
         object _bid_stop_loss
         object _ask_stop_loss
+        object _nr_cycles
+        bint _start_from_sell
+        object _nr_legs
         object _market_trend
         int _interval
         int _short_period
@@ -24,6 +27,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _bootstrap_short_period_moving_average
         object _bootstrap_medium_period_moving_average
         object _bootstrap_long_period_moving_average
+        object _bootstrap_short_period_spread
+        object _bootstrap_medium_period_spread
+        object _bootstrap_long_period_spread
         object _trend_spread_shift_prc
         object _mavg_short
         object _mavg_medium
@@ -91,7 +97,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_apply_order_size_modifiers(self, object proposal)
     cdef c_apply_inventory_skew(self, object proposal)
     cdef c_apply_budget_constraint(self, object proposal)
-
+    cdef c_apply_increase_base(self, object proposal)
     cdef c_filter_out_takers(self, object proposal)
     cdef c_apply_order_optimization(self, object proposal)
     cdef c_apply_add_transaction_costs(self, object proposal)

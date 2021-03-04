@@ -65,12 +65,15 @@ def main():
         "hummingbot.strategy.cross_exchange_market_making",
         "hummingbot.strategy.pure_market_making",
         "hummingbot.strategy.perpetual_market_making",
+        "hummingbot.strategy.contrib_volatility_bot",
         "hummingbot.templates",
         "hummingbot.wallet",
         "hummingbot.wallet.ethereum",
         "hummingbot.wallet.ethereum.uniswap",
         "hummingbot.wallet.ethereum.watcher",
         "hummingbot.wallet.ethereum.zero_ex",
+        "hummingsim",
+        "hummingsim.backtest"
     ]
     package_data = {
         "hummingbot": [

@@ -5,13 +5,13 @@ from typing import (
 
 from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
-from hummingbot.strategy.pure_market_making import (
-    PureMarketMakingStrategy,
+from hummingbot.strategy.contrib_volatility_bot import (
+    VolatilityBotStrategy,
     OrderBookAssetPriceDelegate,
     APIAssetPriceDelegate,
     InventoryCostPriceDelegate,
 )
-from hummingbot.strategy.pure_market_making.pure_market_making_config_map import pure_market_making_config_map as c_map
+from hummingbot.strategy.contrib_volatility_bot.contrib_volatility_bot_config_map import contrib_volatility_bot_config_map as c_map
 from hummingbot.connector.exchange.paper_trade import create_paper_trade_market
 from hummingbot.connector.exchange_base import ExchangeBase
 from decimal import Decimal
@@ -22,9 +22,15 @@ def start(self):
         order_amount = c_map.get("order_amount").value
         order_refresh_time = c_map.get("order_refresh_time").value
         max_order_age = c_map.get("max_order_age").value
+        increase_base = c_map.get("increase_base").value
         bid_spread = c_map.get("bid_spread").value / Decimal('100')
         ask_spread = c_map.get("ask_spread").value / Decimal('100')
-        minimum_spread = c_map.get("minimum_spread").value / Decimal('100')
+        nr_cycles = c_map.get("nr_cycles").value
+        start_from_sell = c_map.get("start_from_sell").value
+        bid_trail_stop_loss = c_map.get("bid_trail_stop_loss").value / Decimal('100')
+        ask_trail_stop_loss = c_map.get("ask_trail_stop_loss").value / Decimal('100')
+        bid_stop_loss = c_map.get("bid_stop_loss").value / Decimal('100')
+        ask_stop_loss = c_map.get("ask_stop_loss").value / Decimal('100')
         trend_spread_shift_prc = c_map.get("trend_spread_shift_prc").value / Decimal('100')
         apply_spread_volatility_enabled = c_map.get("apply_spread_volatility_enabled").value
         interval = c_map.get("interval").value
@@ -34,6 +40,7 @@ def start(self):
         bootstrap_short_period_moving_average = c_map.get("bootstrap_short_period_moving_average").value
         bootstrap_medium_period_moving_average = c_map.get("bootstrap_medium_period_moving_average").value
         bootstrap_long_period_moving_average = c_map.get("bootstrap_long_period_moving_average").value
+        minimum_spread = c_map.get("minimum_spread").value / Decimal('100')
         price_ceiling = c_map.get("price_ceiling").value
         price_floor = c_map.get("price_floor").value
         ping_pong_enabled = c_map.get("ping_pong_enabled").value
@@ -83,12 +90,19 @@ def start(self):
             inventory_cost_price_delegate = InventoryCostPriceDelegate(db, trading_pair)
         take_if_crossed = c_map.get("take_if_crossed").value
 
-        strategy_logging_options = PureMarketMakingStrategy.OPTION_LOG_ALL
+        strategy_logging_options = VolatilityBotStrategy.OPTION_LOG_ALL
 
-        self.strategy = PureMarketMakingStrategy(
+        self.strategy = VolatilityBotStrategy(
             market_info=MarketTradingPairTuple(*maker_data),
             bid_spread=bid_spread,
             ask_spread=ask_spread,
+            increase_base=increase_base,
+            bid_trail_stop_loss=bid_trail_stop_loss,
+            ask_trail_stop_loss=ask_trail_stop_loss,
+            bid_stop_loss=bid_stop_loss,
+            ask_stop_loss=ask_stop_loss,
+            nr_cycles=nr_cycles,
+            start_from_sell=start_from_sell,
             interval=interval,
             short_period=short_period,
             medium_period=medium_period,

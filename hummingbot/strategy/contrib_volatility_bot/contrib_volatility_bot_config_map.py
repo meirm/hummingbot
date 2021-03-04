@@ -23,7 +23,7 @@ from typing import Optional
 
 
 def maker_trading_pair_prompt():
-    exchange = pure_market_making_config_map.get("exchange").value
+    exchange = contrib_volatility_bot_config_map.get("exchange").value
     example = EXAMPLE_PAIRS.get(exchange)
     return "Enter the token trading pair you would like to trade on %s%s >>> " \
            % (exchange, f" (e.g. {example})" if example else "")
@@ -31,13 +31,13 @@ def maker_trading_pair_prompt():
 
 # strategy specific validators
 def validate_exchange_trading_pair(value: str) -> Optional[str]:
-    exchange = pure_market_making_config_map.get("exchange").value
+    exchange = contrib_volatility_bot_config_map.get("exchange").value
     return validate_market_trading_pair(exchange, value)
 
 
 def order_amount_prompt() -> str:
-    exchange = pure_market_making_config_map["exchange"].value
-    trading_pair = pure_market_making_config_map["market"].value
+    exchange = contrib_volatility_bot_config_map["exchange"].value
+    trading_pair = contrib_volatility_bot_config_map["market"].value
     base_asset, quote_asset = trading_pair.split("-")
     min_amount = minimum_order_amount(exchange, trading_pair)
     return f"What is the amount of {base_asset} per order? (minimum {min_amount}) >>> "
@@ -45,8 +45,8 @@ def order_amount_prompt() -> str:
 
 def validate_order_amount(value: str) -> Optional[str]:
     try:
-        exchange = pure_market_making_config_map["exchange"].value
-        trading_pair = pure_market_making_config_map["market"].value
+        exchange = contrib_volatility_bot_config_map["exchange"].value
+        trading_pair = contrib_volatility_bot_config_map["market"].value
         min_amount = minimum_order_amount(exchange, trading_pair)
         if Decimal(value) < min_amount:
             return f"Order amount must be at least {min_amount}."
@@ -61,33 +61,33 @@ def validate_price_source(value: str) -> Optional[str]:
 
 def on_validate_price_source(value: str):
     if value != "external_market":
-        pure_market_making_config_map["price_source_exchange"].value = None
-        pure_market_making_config_map["price_source_market"].value = None
-        pure_market_making_config_map["take_if_crossed"].value = None
+        contrib_volatility_bot_config_map["price_source_exchange"].value = None
+        contrib_volatility_bot_config_map["price_source_market"].value = None
+        contrib_volatility_bot_config_map["take_if_crossed"].value = None
     if value != "custom_api":
-        pure_market_making_config_map["price_source_custom_api"].value = None
+        contrib_volatility_bot_config_map["price_source_custom_api"].value = None
     else:
-        pure_market_making_config_map["price_type"].value = None
+        contrib_volatility_bot_config_map["price_type"].value = None
 
 
 def price_source_market_prompt() -> str:
-    external_market = pure_market_making_config_map.get("price_source_exchange").value
+    external_market = contrib_volatility_bot_config_map.get("price_source_exchange").value
     return f'Enter the token trading pair on {external_market} >>> '
 
 
 def validate_price_source_exchange(value: str) -> Optional[str]:
-    if value == pure_market_making_config_map.get("exchange").value:
+    if value == contrib_volatility_bot_config_map.get("exchange").value:
         return "Price source exchange cannot be the same as maker exchange."
     return validate_exchange(value)
 
 
 def on_validated_price_source_exchange(value: str):
     if value is None:
-        pure_market_making_config_map["price_source_market"].value = None
+        contrib_volatility_bot_config_map["price_source_market"].value = None
 
 
 def validate_price_source_market(value: str) -> Optional[str]:
-    market = pure_market_making_config_map.get("price_source_exchange").value
+    market = contrib_volatility_bot_config_map.get("price_source_exchange").value
     return validate_market_trading_pair(market, value)
 
 
@@ -104,11 +104,11 @@ def exchange_on_validated(value: str):
     required_exchanges.append(value)
 
 
-pure_market_making_config_map = {
+contrib_volatility_bot_config_map = {
     "strategy":
         ConfigVar(key="strategy",
                   prompt=None,
-                  default="pure_market_making"),
+                  default="contrib_volatility_bot"),
     "exchange":
         ConfigVar(key="exchange",
                   prompt="Enter your maker exchange name >>> ",
@@ -120,6 +120,59 @@ pure_market_making_config_map = {
                   prompt=maker_trading_pair_prompt,
                   validator=validate_exchange_trading_pair,
                   prompt_on_new=True),
+    "increase_base":
+        ConfigVar(key="increase_base",
+                  prompt="Do you want to modify ask orders to increase your base capital? ((Yes/No) >>> ",
+                  type_str="bool",
+                  validator=validate_bool),
+    "start_from_sell":
+        ConfigVar(key="start_from_sell",
+                  prompt="Would you like to start with a sell order? (Yes/No) >>> ",
+                  type_str="bool",
+                  default=False,
+                  prompt_on_new=True,
+                  validator=validate_bool),
+    "nr_cycles":
+        ConfigVar(key="nr_cycles",
+                  prompt="How many orders do you want to place? "
+                        " (1,2,3,.. are number of buy/sell loops,"
+                        "adding 0.5 will finish on half loop)"
+                        "-1 to disable >>> ",
+                  type_str="decimal",
+                  default=Decimal("-1"),
+                  validator=validate_price_floor_ceiling),
+    "bid_trail_stop_loss":
+        ConfigVar(key="bid_trail_stop_loss",
+                  prompt="Bid Limit Order of the Quote token will be executed at current_mid_price"
+                        " when Trail Stop Loss is triggered >>>",
+                  type_str="decimal",
+                  default=Decimal(0.0),
+                  validator=lambda v: validate_decimal(v, 0, 100, inclusive=True),
+                  prompt_on_new=True),   
+    "ask_trail_stop_loss":
+        ConfigVar(key="ask_trail_stop_loss",
+                  prompt="Ask Limit Order of the Quote token will be executed at current_mid_price"
+                  " when Trail Stop Loss is triggered >>>",
+                  type_str="decimal",
+                  default=Decimal(0.0),
+                  validator=lambda v: validate_decimal(v, 0, 100, inclusive=True),
+                  prompt_on_new=True), 
+    "bid_stop_loss":
+        ConfigVar(key="bid_stop_loss",
+                  prompt="Bid Limit Order of the Quote token will be executed at current_mid_price"
+                  " when Stop Loss is triggered >>>"
+                  "-1 to disable >>> ",
+                  type_str="decimal",
+                  default=Decimal("-1"),
+                  validator=validate_price_floor_ceiling),   
+    "ask_stop_loss":
+        ConfigVar(key="ask_stop_loss",
+                  prompt="Ask Limit Order of the Quote token will be executed at current_mid_price"
+                  " when Stop Loss is triggered >>>"
+                  "-1 to disable >>> ",
+                  type_str="decimal",
+                  default=Decimal("-1"),
+                  validator=validate_price_floor_ceiling),
     "interval":
         ConfigVar(key="interval",
                   prompt="Interim in secs which to pick historical mid price samples from (default: 10)? >>> ",
@@ -221,10 +274,10 @@ pure_market_making_config_map = {
     "order_refresh_tolerance_pct":
         ConfigVar(key="order_refresh_tolerance_pct",
                   prompt="Enter the percent change in price needed to refresh orders at each cycle "
-                         "(Enter 1 to indicate 1%) >>> ",
+                         "(Enter 1 to indicate 1%, Enter -1 to disable it) >>> ",
                   type_str="decimal",
                   default=Decimal("0"),
-                  validator=lambda v: validate_decimal(v, -10, 10, inclusive=True)),
+                  validator=lambda v: validate_decimal(v, -1, 100, inclusive=True)),
     "order_amount":
         ConfigVar(key="order_amount",
                   prompt=order_amount_prompt,
@@ -254,7 +307,7 @@ pure_market_making_config_map = {
                   validator=validate_bool),
     "order_levels":
         ConfigVar(key="order_levels",
-                  prompt="How many orders do you want to place on both sides? >>> ",
+                  prompt="How many orders do you want to place on both sides simultaneously? >>> ",
                   type_str="int",
                   validator=lambda v: validate_int(v, min_value=-1, inclusive=False),
                   default=1),
@@ -262,7 +315,7 @@ pure_market_making_config_map = {
         ConfigVar(key="order_level_amount",
                   prompt="How much do you want to increase or decrease the order size for each "
                          "additional order? (decrease < 0 > increase) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("order_levels").value > 1,
+                  required_if=lambda: contrib_volatility_bot_config_map.get("order_levels").value > 1,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v),
                   default=0),
@@ -270,7 +323,7 @@ pure_market_making_config_map = {
         ConfigVar(key="order_level_spread",
                   prompt="Enter the price increments (as percentage) for subsequent "
                          "orders? (Enter 1 to indicate 1%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("order_levels").value > 1,
+                  required_if=lambda: contrib_volatility_bot_config_map.get("order_levels").value > 1,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=False),
                   default=Decimal("1")),
@@ -283,7 +336,7 @@ pure_market_making_config_map = {
     "inventory_target_base_pct":
         ConfigVar(key="inventory_target_base_pct",
                   prompt="What is your target base asset percentage? Enter 50 for 50% >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("inventory_skew_enabled").value,
+                  required_if=lambda: contrib_volatility_bot_config_map.get("inventory_skew_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100),
                   default=Decimal("50")),
@@ -291,7 +344,7 @@ pure_market_making_config_map = {
         ConfigVar(key="inventory_range_multiplier",
                   prompt="What is your tolerable range of inventory around the target, "
                          "expressed in multiples of your total order size? ",
-                  required_if=lambda: pure_market_making_config_map.get("inventory_skew_enabled").value,
+                  required_if=lambda: contrib_volatility_bot_config_map.get("inventory_skew_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=0, inclusive=False),
                   default=Decimal("1")),
@@ -319,7 +372,7 @@ pure_market_making_config_map = {
         ConfigVar(key="hanging_orders_cancel_pct",
                   prompt="At what spread percentage (from mid price) will hanging orders be canceled? "
                          "(Enter 1 to indicate 1%) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("hanging_orders_enabled").value,
+                  required_if=lambda: contrib_volatility_bot_config_map.get("hanging_orders_enabled").value,
                   type_str="decimal",
                   default=Decimal("10"),
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=False)),
@@ -334,7 +387,7 @@ pure_market_making_config_map = {
                   prompt="How deep do you want to go into the order book for calculating "
                          "the top ask, ignoring dust orders on the top "
                          "(expressed in base asset amount)? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("order_optimization_enabled").value,
+                  required_if=lambda: contrib_volatility_bot_config_map.get("order_optimization_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=0),
                   default=0),
@@ -343,7 +396,7 @@ pure_market_making_config_map = {
                   prompt="How deep do you want to go into the order book for calculating "
                          "the top bid, ignoring dust orders on the top "
                          "(expressed in base asset amount)? >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("order_optimization_enabled").value,
+                  required_if=lambda: contrib_volatility_bot_config_map.get("order_optimization_enabled").value,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=0),
                   default=0),
@@ -365,7 +418,7 @@ pure_market_making_config_map = {
                   prompt="Which price type to use? ("
                          "mid_price/last_price/last_own_trade_price/best_bid/best_ask/inventory_cost) >>> ",
                   type_str="str",
-                  required_if=lambda: pure_market_making_config_map.get("price_source").value != "custom_api",
+                  required_if=lambda: contrib_volatility_bot_config_map.get("price_source").value != "custom_api",
                   default="mid_price",
                   validator=lambda s: None if s in {"mid_price",
                                                     "last_price",
@@ -378,27 +431,27 @@ pure_market_making_config_map = {
     "price_source_exchange":
         ConfigVar(key="price_source_exchange",
                   prompt="Enter external price source exchange name >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "external_market",
+                  required_if=lambda: contrib_volatility_bot_config_map.get("price_source").value == "external_market",
                   type_str="str",
                   validator=validate_price_source_exchange,
                   on_validated=on_validated_price_source_exchange),
     "price_source_market":
         ConfigVar(key="price_source_market",
                   prompt=price_source_market_prompt,
-                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "external_market",
+                  required_if=lambda: contrib_volatility_bot_config_map.get("price_source").value == "external_market",
                   type_str="str",
                   validator=validate_price_source_market),
     "take_if_crossed":
         ConfigVar(key="take_if_crossed",
                   prompt="Do you want to take the best order if orders cross the orderbook? ((Yes/No) >>> ",
-                  required_if=lambda: pure_market_making_config_map.get(
+                  required_if=lambda: contrib_volatility_bot_config_map.get(
                       "price_source").value == "external_market",
                   type_str="bool",
                   validator=validate_bool),
     "price_source_custom_api":
         ConfigVar(key="price_source_custom_api",
                   prompt="Enter pricing API URL >>> ",
-                  required_if=lambda: pure_market_making_config_map.get("price_source").value == "custom_api",
+                  required_if=lambda: contrib_volatility_bot_config_map.get("price_source").value == "custom_api",
                   type_str="str"),
     "order_override":
         ConfigVar(key="order_override",

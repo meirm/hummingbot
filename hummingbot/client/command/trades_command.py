@@ -36,7 +36,7 @@ class TradesCommand:
                             market: str,
                             open_order_markets: bool):
         connector = await self.get_binance_connector()
-        if connector is None:
+        if connector is None: # FIXME: Add support for paper or external service
             self._notify("This command supports only binance (for now), please first connect to binance.")
             return
         self._notify(f"Starting: {datetime.fromtimestamp(get_timestamp(days)).strftime('%Y-%m-%d %H:%M:%S')}"

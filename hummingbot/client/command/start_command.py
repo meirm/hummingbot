@@ -114,7 +114,7 @@ class StartCommand:
         try:
             config_path: str = self.strategy_file_name
             self.start_time = time.time() * 1e3  # Time in milliseconds
-            self.clock = Clock(ClockMode.REALTIME)
+            self.clock = Clock(ClockMode.REALTIME) # TODO: review if we can use backtest here. May be to use external clock.
             if self.wallet is not None:
                 self.clock.add_iterator(self.wallet)
             for market in self.markets.values():
@@ -134,7 +134,7 @@ class StartCommand:
                 folder = dirname(script_file)
                 if folder == "":
                     script_file = join(SCRIPTS_PATH, script_file)
-                if self.strategy_name != "pure_market_making":
+                if self.strategy_name != "pure_market_making": # review this
                     self._notify("Error: script feature is only available for pure_market_making strategy (for now).")
                 else:
                     self._script_iterator = ScriptIterator(script_file, list(self.markets.values()),

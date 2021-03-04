@@ -1,5 +1,5 @@
 ########################################################
-###       Pure market making strategy config         ###
+###       Contrib volatility bot strategy config     ###
 ########################################################
 
 template_version: 20
@@ -22,6 +22,33 @@ bid_spread: null
 # Example if mid price is 100 and ask_spread is 1.
 # Your bid is placed at 101.
 ask_spread: null
+
+# Do you want to modify ask orders to increase your base capital? ((Yes/No)
+increase_base: null
+
+# Would you like to start from a sell order
+start_from_sell: null
+
+# How many orders do you want to place " (1,2,3,.. are 
+# number of buy/sell loops, adding 0.5 will finish on 
+# a buy) Min:0.5 Max:100
+nr_cycles: null
+
+# Bid Limit Order of the Quote token will be executed 
+# at current_mid_price when Trail Stop Loss is triggered
+bid_trail_stop_loss: null
+
+# Ask Limit Order of the Quote token will be executed 
+# at current_mid_price when Trail Stop Loss is triggered
+ask_trail_stop_loss: null
+
+# Bid Limit Order of the Quote token will be executed 
+# at current_mid_price when Stop Loss is triggered
+bid_stop_loss: null
+
+# Ask Limit Order of the Quote token will be executed 
+# at current_mid_price when Stop Loss is triggered
+ask_stop_loss: null
 
 # On trending market, how much do you want to shift
 trend_spread_shift_prc: null

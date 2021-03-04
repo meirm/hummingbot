@@ -1,3 +1,11 @@
+"""
+ _                      _             _             
+| |_ ___ _ __ _ __ ___ (_)_ __   __ _| |_ ___  _ __ 
+| __/ _ \ '__| '_ ` _ \| | '_ \ / _` | __/ _ \| '__|
+| ||  __/ |  | | | | | | | | | | (_| | || (_) | |   
+ \__\___|_|  |_| |_| |_|_|_| |_|\__,_|\__\___/|_|   
+
+"""
 from decimal import Decimal
 import logging
 import pandas as pd
@@ -461,13 +469,15 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
         for idx in self.active_positions.values():
             is_buy = True if idx.amount > 0 else False
             unrealized_profit = ((market.get_price(trading_pair, is_buy) - idx.entry_price) * idx.amount)
+            profit_with_leverage = 100 * idx.leverage * unrealized_profit / (idx.entry_price * idx.amount) 
+            unrealized_profit_with_prc = "{} ({:.2}%)".format(unrealized_profit, profit_with_leverage)
             data.append([
                 idx.trading_pair,
                 idx.position_side.name,
                 idx.entry_price,
                 idx.amount,
                 idx.leverage,
-                unrealized_profit
+                unrealized_profit_with_prc
             ])
 
         return pd.DataFrame(data=data, columns=columns)
@@ -661,9 +671,10 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
         for position in active_positions:
             if (ask_price > position.entry_price and position.amount > 0) or (bid_price < position.entry_price and position.amount < 0):
                 # check if there is an active order to take profit, and create if none exists
-                profit_spread = self._long_profit_taking_spread if position.amount < 0 else self._short_profit_taking_spread
-                take_profit_price = position.entry_price * (Decimal("1") + profit_spread) if position.amount > 0 \
-                    else position.entry_price * (Decimal("1") - profit_spread)
+                profit_spread = 1 / position.leverage *  self._long_profit_taking_spread if position.amount < 0 else self._short_profit_taking_spread
+
+                take_profit_price = position.entry_price * (Decimal("1") + profit_spread/ position.leverage) if position.amount > 0 \
+                    else position.entry_price * (Decimal("1") - profit_spread/ position.leverage)
                 price = market.c_quantize_order_price(self.trading_pair, take_profit_price)
                 old_exit_orders = [o for o in active_orders if (o.price != price and position.amount < 0 and o.client_order_id in self._exit_orders and o.is_buy)
                                    or (o.price != price and position.amount > 0 and o.client_order_id in self._exit_orders and not o.is_buy)]
@@ -715,14 +726,14 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
                 continue
             if position.amount > 0:  # this is a long position
                 top_ask = market.get_price(self.trading_pair, False)
-                if max(top_ask, self._ts_peak_ask_price) >= (position.entry_price * (Decimal("1") + self._ts_activation_spread)):
+                if max(top_ask, self._ts_peak_ask_price) >= (position.entry_price * (Decimal("1") + self._ts_activation_spread / position.leverage)):
                     if top_ask > self._ts_peak_ask_price or self._ts_peak_ask_price == Decimal("0"):
-                        estimated_exit = (top_ask * (Decimal("1") - self._ts_callback_rate))
+                        estimated_exit = (top_ask * (Decimal("1") - self._ts_callback_rate / position.leverage))
                         estimated_exit = "Nill" if estimated_exit <= position.entry_price else estimated_exit
                         self.logger().info(f"New {top_ask} {self.quote_asset} peak price on sell order book, estimated exit price"
                                            f" to lock profit is {estimated_exit} {self.quote_asset}.")
                         self._ts_peak_ask_price = top_ask
-                    elif top_ask <= (self._ts_peak_ask_price * (Decimal("1") - self._ts_callback_rate)):
+                    elif top_ask <= (self._ts_peak_ask_price * (Decimal("1") - self._ts_callback_rate / position.leverage)):
                         exit_price = market.get_price_for_volume(self.trading_pair, False,
                                                                  abs(position.amount)).result_price
                         price = market.c_quantize_order_price(self.trading_pair, exit_price)
@@ -734,7 +745,7 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
                         for order in exit_order_exists:
                             if not order.is_buy:
                                 create_order = False
-                        if create_order is True and price > position.entry_price:
+                        if create_order is True and price > position.entry_price * (Decimal("1") + self._ts_activation_spread / position.leverage):
                             if self._close_position_order_type == OrderType.MARKET and self._current_timestamp <= self._market_position_close_timestamp:
                                 continue
                             self._market_position_close_timestamp = self._current_timestamp + 10  # 10 seconds delay before attempting to close position with market order
@@ -743,14 +754,14 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
                                                f" deviation from {self._ts_peak_ask_price} {self.quote_asset} trailing maximum price to secure profit.")
             else:
                 top_bid = market.get_price(self.trading_pair, True)
-                if min(top_bid, self._ts_peak_bid_price) <= (position.entry_price * (Decimal("1") - self._ts_activation_spread)):
+                if min(top_bid, self._ts_peak_bid_price) <= (position.entry_price * (Decimal("1") - self._ts_activation_spread / position.leverage)):
                     if top_bid < self._ts_peak_bid_price or self._ts_peak_ask_price == Decimal("0"):
-                        estimated_exit = (top_bid * (Decimal("1") + self._ts_callback_rate))
+                        estimated_exit = (top_bid * (Decimal("1") + self._ts_callback_rate / position.leverage))
                         estimated_exit = "Nill" if estimated_exit >= position.entry_price else estimated_exit
                         self.logger().info(f"New {top_bid} {self.quote_asset} peak price on buy order book, estimated exit price"
                                            f" to lock profit is {estimated_exit} {self.quote_asset}.")
                         self._ts_peak_bid_price = top_bid
-                    elif top_bid >= (self._ts_peak_bid_price * (Decimal("1") + self._ts_callback_rate)):
+                    elif top_bid >= (self._ts_peak_bid_price * (Decimal("1") + self._ts_callback_rate / position.leverage)):
                         exit_price = market.get_price_for_volume(self.trading_pair, True,
                                                                  abs(position.amount)).result_price
                         price = market.c_quantize_order_price(self.trading_pair, exit_price)
@@ -762,7 +773,7 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
                         for order in exit_order_exists:
                             if order.is_buy:
                                 create_order = False
-                        if create_order is True and price < position.entry_price:
+                        if create_order is True and price < position.entry_price * (Decimal("1") - self._ts_activation_spread / position.leverage):
                             if self._close_position_order_type == OrderType.MARKET and self._current_timestamp <= self._market_position_close_timestamp:
                                 continue
                             self._market_position_close_timestamp = self._current_timestamp + 10  # 10 seconds delay before attempting to close position with market order
@@ -783,10 +794,11 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
 
         for position in active_positions:
             # check if stop loss order needs to be placed
-            stop_loss_price = position.entry_price * (Decimal("1") + self._stop_loss_spread) if position.amount < 0 \
-                else position.entry_price * (Decimal("1") - self._stop_loss_spread)
+            stop_loss_price = position.entry_price * (Decimal("1") + (self._stop_loss_spread / position.leverage)) if position.amount < 0 \
+                else position.entry_price * (Decimal("1") - (self._stop_loss_spread / position.leverage))
+
             if (top_ask <= stop_loss_price and position.amount > 0):
-                price = market.c_quantize_order_price(self.trading_pair, stop_loss_price)
+                price = market.c_quantize_order_price(self.trading_pair, (top_ask + stop_loss_price)/ 2) # stop_loss_price) # FIXME: we may never close position if stop_loss_price is not met.
                 take_profit_orders = [o for o in active_orders if (not o.is_buy and o.price > price and o.client_order_id in self._exit_orders)]
                 # cancel take profit orders if they exist
                 for old_order in take_profit_orders:
@@ -802,7 +814,7 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
                         self.logger().info(f"Creating stop loss sell order to close long position.")
                         sells.append(PriceSize(price, size))
             elif (top_bid >= stop_loss_price and position.amount < 0):
-                price = market.c_quantize_order_price(self.trading_pair, stop_loss_price)
+                price = market.c_quantize_order_price(self.trading_pair,  (top_bid + stop_loss_price)/ 2) # stop_loss_price) # FIXME: we may never close position if stop_loss_price is not met.
                 take_profit_orders = [o for o in active_orders if (o.is_buy and o.price < price and o.client_order_id in self._exit_orders)]
                 # cancel take profit orders if they exist
                 for old_order in take_profit_orders:
@@ -846,15 +858,15 @@ cdef class PerpetualMarketMakingStrategy(StrategyBase):
                         if size > 0 and price > 0:
                             sells.append(PriceSize(price, size))
         else:
-            for level in range(0, self._buy_levels):
-                price = self.get_price() * (Decimal("1") - self._bid_spread - (level * self._order_level_spread))
+            for level in range(1, self._buy_levels):
+                price = self.get_price() * (Decimal("1") - self._bid_spread - (level - 1) * self._order_level_spread)
                 price = market.c_quantize_order_price(self.trading_pair, price)
                 size = self._order_amount + (self._order_level_amount * level)
                 size = market.c_quantize_order_amount(self.trading_pair, size)
                 if size > 0:
                     buys.append(PriceSize(price, size))
-            for level in range(0, self._sell_levels):
-                price = self.get_price() * (Decimal("1") + self._ask_spread + (level * self._order_level_spread))
+            for level in range(1, self._sell_levels):
+                price = self.get_price() * (Decimal("1") + self._ask_spread + (level - 1) * self._order_level_spread)
                 price = market.c_quantize_order_price(self.trading_pair, price)
                 size = self._order_amount + (self._order_level_amount * level)
                 size = market.c_quantize_order_amount(self.trading_pair, size)
