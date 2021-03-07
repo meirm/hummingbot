@@ -14,6 +14,15 @@ market: null
 # What leverage to used
 leverage: null
 
+# What leverage to used in auto Long/Short positions regardless of general leverage value
+auto_leverage: null
+
+# Scale spreads and perc by leverage
+scale_leverage: null
+
+# Use percentage instead of fixed order amount. Zero value disable this.
+auto_order_amount_prc: null
+
 # Position mode to use, hedge mode or one-way position mode.
 position_mode: null
 

@@ -905,6 +905,9 @@ class BinancePerpetualDerivative(DerivativeBase):
     def set_margin(self, trading_pair: str, leverage: int = 1):
         safe_ensure_future(self._set_margin(trading_pair, leverage))
 
+    def get_margin(self):
+        return self._leverage
+        
     """
     async def get_position_pnl(self, trading_pair: str):
         await self._update_positions()

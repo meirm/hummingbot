@@ -46,6 +46,8 @@ class UserBalances:
         else:
             UserBalances.__instance = self
         self._markets = {}
+        self._balances = None
+        self._avai_balances = None
 
     async def add_exchange(self, exchange, **api_details) -> Optional[str]:
         self._markets.pop(exchange, None)
@@ -58,7 +60,8 @@ class UserBalances:
     def all_balances(self, exchange) -> Dict[str, Decimal]:
         if exchange not in self._markets:
             return None
-        return self._markets[exchange].get_all_balances()
+        self._balances = self._markets[exchange].get_all_balances()
+        return self._balances
 
     async def update_exchange_balance(self, exchange) -> Optional[str]:
         if exchange in self._markets:
@@ -91,7 +94,8 @@ class UserBalances:
         return {k: v.get_all_balances() for k, v in sorted(self._markets.items(), key=lambda x: x[0])}
 
     def all_avai_balances_all_exchanges(self) -> Dict[str, Dict[str, Decimal]]:
-        return {k: v.available_balances for k, v in sorted(self._markets.items(), key=lambda x: x[0])}
+        self._avai_balances =  {k: v.available_balances for k, v in sorted(self._markets.items(), key=lambda x: x[0])}
+        return self._avai_balances
 
     async def balances(self, exchange, *symbols) -> Dict[str, Decimal]:
         if await self.update_exchange_balance(exchange) is None:

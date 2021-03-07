@@ -18,6 +18,9 @@ from decimal import Decimal
 def start(self):
     try:
         leverage = c_map.get("leverage").value
+        auto_leverage = c_map.get("auto_leverage").value
+        scale_leverage = c_map.get("scale_leverage").value / Decimal('100')
+        auto_order_amount_prc = c_map.get("auto_order_amount_prc").value / Decimal('100')
         position_mode = c_map.get("position_mode").value
         order_amount = c_map.get("order_amount").value
         order_refresh_time = c_map.get("order_refresh_time").value
@@ -77,6 +80,9 @@ def start(self):
         self.strategy = PerpetualMarketMakingStrategy(
             market_info=MarketTradingPairTuple(*maker_data),
             leverage=leverage,
+            scale_leverage=scale_leverage,
+            auto_leverage=auto_leverage,
+            auto_order_amount_prc=auto_order_amount_prc,
             position_mode=position_mode,
             bid_spread=bid_spread,
             ask_spread=ask_spread,

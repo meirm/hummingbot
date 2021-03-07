@@ -1,0 +1,1 @@
+* Create Categories so we can avoid hardcoding names of strategies in the code.
