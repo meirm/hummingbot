@@ -4,7 +4,7 @@ from typing import (
 )
 from hummingbot.client.errors import ArgumentParserError
 from hummingbot.client.command.connect_command import OPTIONS as CONNECT_OPTIONS
-
+from hummingbot.client.command.macro_command import OPTIONS as MACRO_OPTIONS
 
 class ThrowingArgumentParser(argparse.ArgumentParser):
     def error(self, message):
@@ -71,11 +71,11 @@ def load_parser(hummingbot) -> ThrowingArgumentParser:
     # start_parser.add_argument("--log-level", help="Level of logging")
     start_parser.set_defaults(func=hummingbot.start)
 
-    long_parser = subparsers.add_parser("long", help="Send Long order with auto values.")
-    balance_parser.add_argument("args", nargs="*")
-    #long_parser.add_argument("leverage", default=False, action="store_true", dest="restore", help="Set leverage value for the long position.")
-    # start_parser.add_argument("--log-level", help="Level of logging")
-    long_parser.set_defaults(func=hummingbot.long)
+    macro_parser = subparsers.add_parser("macro", help="Run macro commands.")
+    macro_parser.add_argument("option", nargs="?", choices=MACRO_OPTIONS, default=None,
+                                help="run 'macro help' for more details.")
+    macro_parser.add_argument("args", nargs="*")
+    macro_parser.set_defaults(func=hummingbot.macro)
 
     stop_parser = subparsers.add_parser('stop', help="Stop the current bot")
     stop_parser.set_defaults(func=hummingbot.stop)

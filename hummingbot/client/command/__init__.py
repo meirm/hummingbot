@@ -1,5 +1,5 @@
-from hummingbot.client.command.long_command import LongCommand
-from .long_command import LongCommand
+
+from .macro_command import MacroCommand
 from .config_command import ConfigCommand
 from .exit_command import ExitCommand
 from .get_balance_command import GetBalanceCommand
@@ -24,7 +24,7 @@ from .pnl_command import PnlCommand
 
 
 __all__ = [
-    LongCommand,
+    MacroCommand,
     ConfigCommand,
     ExitCommand,
     GetBalanceCommand,

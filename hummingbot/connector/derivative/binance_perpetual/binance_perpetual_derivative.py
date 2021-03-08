@@ -888,26 +888,31 @@ class BinancePerpetualDerivative(DerivativeBase):
             "symbol": convert_to_exchange_trading_pair(trading_pair),
             "leverage": leverage
         }
-        set_leverage = await self.request(
+        response = await self.request(
             path="/fapi/v1/leverage",
             params=params,
             method=MethodType.POST,
             add_timestamp=True,
             is_signed=True
         )
-        if set_leverage["leverage"] == leverage:
+        if response.get("code", 200) == 200:
             self._leverage = leverage
             self.logger().info(f"Leverage Successfully set to {leverage}.")
+        elif response.get("code",0) == -4161:
+            self.logger().info('Leverage reduction is not supported in Isolated Margin Mode with open positions.')
+        elif response.get("code",0) < 0:
+            self.logger().info(response.get("msg",""))
         else:
             self.logger().error("Unable to set leverage.")
-        return leverage
+            self.logger().error(response.get("msg",""))
+        return self._leverage
 
     def set_margin(self, trading_pair: str, leverage: int = 1):
         safe_ensure_future(self._set_margin(trading_pair, leverage))
 
     def get_margin(self):
         return self._leverage
-        
+
     """
     async def get_position_pnl(self, trading_pair: str):
         await self._update_positions()

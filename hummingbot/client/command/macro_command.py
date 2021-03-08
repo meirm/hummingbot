@@ -39,27 +39,72 @@ s_decimal_0 = Decimal("0")
 if TYPE_CHECKING:
     from hummingbot.client.hummingbot_application import HummingbotApplication
 
+OPTIONS = [
+    "leverage",
+    "long",
+    "short",
+    "help"
+]
 
-class LongCommand:
-    def long(self,  # type: HummingbotApplication
-            args: List[str] = None):
-        if threading.current_thread() != threading.main_thread():
-            self.ev_loop.call_soon_threadsafe(self.open_long_position, args) # FIXME: add option to cancel open trades.
+class MacroCommand:
+    def macro(self,  # type: HummingbotApplication
+            option: str = None,
+                args: List[str] = None
+                ):
+        if option is None:
             return
-        safe_ensure_future(self.open_long_position(args))
+        if threading.current_thread() != threading.main_thread():
+            self.ev_loop.call_soon_threadsafe(self.macro, option, args) # FIXME: add option to cancel open trades.
+            return
+        # if threading.current_thread() != threading.main_thread():
+        if option in ["long","short"]:
+            safe_ensure_future(self.open_position(option, args)) # FIXME: add option to cancel open trades.
+        elif option == "leverage":
+            safe_ensure_future(self.macro_set_leverage( args)) # FIXME: add option to cancel open trades.
+        elif option == "help":
+            self._notify(f"macro leverage <new_leverage value>")
+            self._notify(f"macro long [amount] [price]")
+            self._notify(f"macro short [amount] [price]")
+            self._notify(f"macro help")
+        
 
-    async def open_long_position(self,  # type: HummingbotApplication
+    async def macro_set_leverage(self,  # type: HummingbotApplication
                                  args: List[str] = None):
-        """ Create a long position using default values from map:
-                trade_type: TradeType,
-                trading_pair: str,
-                amount: Decimal,
-                order_type: OrderType,
-                position_action: PositionAction,
-                price: Optional[Decimal] = Decimal("NaN")):
-            Generate:
-                order_id: str,
-        """
+        if args is not  None and len(args) == 1:
+             leverage = args[0]
+        else:
+            return
+        # Fixme: in the future add command get so we can retrieve individual key values from the config.
+        data = dict()
+        if self.strategy_name is not None:
+            for cv in self.strategy_config_map.values():
+                if not cv.is_secure:
+                    data[cv.key] = cv.value
+        else:
+            self._notify("This command supports only binance and perpetual_market_making strategy (for now), please first connect to binance and import/create a perpetual_market_making strategy instance.")
+            return
+        if self.strategy_name != "perpetual_market_making": 
+            self._notify("This command supports only binance and perpetual_market_making strategy (for now), please first connect to binance and import/create a perpetual_market_making strategy instance.")
+            return
+        
+        exchange = "binance_perpetual" # FIXME: add support for papertrade
+        trading_pair = data["market"]
+        base, quote = trading_pair.split("-")
+        market = self.markets[exchange]
+        try:
+            market.set_margin(trading_pair,leverage)
+        except Exception as e:
+            self._notify(f"Careful, got error setting Leverage, it may be a false alarm if the leverage was already x{leverage}")
+            self._notify(e)
+
+    async def open_position(self,  # type: HummingbotApplication
+                                option: str = None,
+                                 args: List[str] = None):
+        if option == "long":
+            trade_type = TradeType.BUY
+        else:
+            trade_type = TradeType.SELL # short
+
         # Fixme: in the future add command get so we can retrieve individual key values from the config.
         data = dict()
         if self.strategy_name is not None:
@@ -95,7 +140,7 @@ class LongCommand:
         quote_balance = all_ex_avai_bals[exchange][quote]
         
         # if args is None or len(args) < 3:
-        #     sensitivity =  data["auto_order_amount_prc"] if data["auto_order_amount_prc"] > 0 else data["order_amount"]
+        #     sensitivity =  data["order_amount_prc"] if data["order_amount_prc"] > 0 else data["order_amount"]
         # else:
         #     sensitivity = Decimal(args[3]) / Decimal("100")
         if args is None or len(args) < 2:
@@ -104,15 +149,10 @@ class LongCommand:
             base_price = Decimal(args[1])
         
         if args is None or len(args) < 1:
-            amount = (data["order_amount"] * data["auto_order_amount_prc"]) if data["auto_order_amount_prc"] > 0 else data["order_amount"]
+            amount = (data["order_amount"] * data["order_amount_prc"]) if data["order_amount_prc"] > 0 else data["order_amount"]
         else:
-            amount = min(Decimal(args[0]), quote_balance / base_price) # FIXME:
-            #amount = max(Decimal(args[1]), quote_balance * data["auto_limit_prc"])
-        # if args is None or len(args) < 1:
-        #     leverage = data["auto_leverage"] if data["auto_leverage"] > 0 else data["leverage"]
-        # else:
-        #     leverage = data['leverage']
-        leverage = data["auto_leverage"] if data["auto_leverage"] > 0 else data["leverage"] 
+            amount = min(Decimal(args[0]), quote_balance / base_price)
+       
         
         market = self.markets[exchange]
         # try:
@@ -125,7 +165,6 @@ class LongCommand:
         #     await asyncio.sleep(0.5)
         #     self._notify("Waiting to set leverage")
         
-        trade_type = TradeType.BUY
         price = base_price
         order_type = OrderType.LIMIT_MAKER # FIXME: ?
         position_action = PositionAction.OPEN
@@ -133,7 +172,7 @@ class LongCommand:
         #position_mode = PositionMode.HEDGE
         #size_usd = await usd_value(base, amount)
         order_id = get_client_order_id("LONG",trading_pair)
-        self._notify("\nOpening Long order:")
+        self._notify(f"\nOpening {option} order:")
         lines = list()
         lines.append("    " + f"Order ID: {order_id}")
         lines.append("    " + f"Trading_pair: {trading_pair}")
@@ -170,5 +209,5 @@ class LongCommand:
             
             self._notify("\n".join(lines))
         else:
-            self._notify("\nCould not open Long order.")
+            self._notify("\nCould not open {option} order.")
         

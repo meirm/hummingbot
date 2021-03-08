@@ -135,26 +135,18 @@ perpetual_market_making_config_map = {
                   prompt=maker_trading_pair_prompt,
                   validator=validate_derivative_trading_pair,
                   prompt_on_new=True),
-    "scale_leverage":
-        ConfigVar(key="scale_leverage",
-                  prompt="How much influence will leverage have on spreads, TP, SL and TSL? (Enter 1 to indicate 1%) "
-                  " (Enter 0 to disable feature) >>> ",
-                  type_str="decimal",
-                  validator=lambda v: validate_decimal(v, 0, 100, inclusive=True),
-                  prompt_on_new=True),
-    "auto_order_amount_prc":
-        ConfigVar(key="auto_order_amount_prc",
+    "stop_loss_market":
+        ConfigVar(key="stop_loss_market",
+                  prompt="Close stop loss using Market Order instead of Limit Order? (Yes/No) >>> ",
+                  type_str="bool",
+                  default=True,
+                  validator=validate_bool),
+    "order_amount_prc":
+        ConfigVar(key="order_amount_prc",
                   prompt="Use Quote balance percentage to calculate order Long size? (Enter 1 to indicate 1%) "
                   " (Enter 0 to disable feature) >>> ",
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, 0, 100, inclusive=True),
-                  prompt_on_new=True),
-    "auto_leverage":
-        ConfigVar(key="auto_leverage",
-                  prompt="How much leverage do you want to use on autoTrade? "
-                         "(Max: 125X, Binance Perpetual supports up to 75X for most pairs) >>> ",
-                  type_str="int",
-                  validator=lambda v: validate_int(v, min_value=0, inclusive=False),
                   prompt_on_new=True),
     "leverage":
         ConfigVar(key="leverage",

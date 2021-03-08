@@ -7,9 +7,8 @@ from hummingbot.strategy.strategy_base cimport StrategyBase
 cdef class PerpetualMarketMakingStrategy(StrategyBase):
     cdef:
         object _market_info
-        object _scale_leverage
-        object _auto_order_amount_prc
-        bint _auto_leverage
+        object _order_amount_prc
+        bint _stop_loss_market
         int _leverage
         object _position_mode
         object _bid_spread

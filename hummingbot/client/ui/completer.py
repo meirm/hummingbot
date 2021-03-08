@@ -20,6 +20,7 @@ from hummingbot.client.ui.parser import ThrowingArgumentParser
 from hummingbot.core.utils.wallet_setup import list_wallets
 from hummingbot.core.utils.trading_pair_fetcher import TradingPairFetcher
 from hummingbot.client.command.connect_command import OPTIONS as CONNECT_OPTIONS
+from hummingbot.client.command.macro_command import OPTIONS as MACRO_OPTIONS
 
 
 def file_name_list(path, file_extension):
@@ -38,6 +39,7 @@ class HummingbotCompleter(Completer):
         self._exchange_completer = WordCompleter(EXCHANGES, ignore_case=True)
         self._derivative_completer = WordCompleter(DERIVATIVES, ignore_case=True)
         self._connect_option_completer = WordCompleter(CONNECT_OPTIONS, ignore_case=True)
+        self._macro_completer = WordCompleter(MACRO_OPTIONS, ignore_case=True)
         self._export_completer = WordCompleter(["keys", "trades"], ignore_case=True)
         self._balance_completer = WordCompleter(["limit", "paper"], ignore_case=True)
         self._history_completer = WordCompleter(["--days", "--verbose", "--precision"], ignore_case=True)
@@ -127,6 +129,10 @@ class HummingbotCompleter(Completer):
     def _complete_history_arguments(self, document: Document) -> bool:
         text_before_cursor: str = document.text_before_cursor
         return text_before_cursor.startswith("history ")
+    
+    def _complete_macro(self, document: Document) -> bool:
+        text_before_cursor: str = document.text_before_cursor
+        return text_before_cursor.startswith("macro ")
 
     def _complete_trading_pairs(self, document: Document) -> bool:
         return "trading pair" in self.prompt_text
@@ -221,6 +227,10 @@ class HummingbotCompleter(Completer):
 
         elif self._complete_options(document):
             for c in self._option_completer.get_completions(document, complete_event):
+                yield c
+        
+        elif self._complete_macro(document):
+            for c in self._macro_completer.get_completions(document, complete_event):
                 yield c
 
         else:

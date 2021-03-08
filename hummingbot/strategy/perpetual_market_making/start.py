@@ -18,9 +18,7 @@ from decimal import Decimal
 def start(self):
     try:
         leverage = c_map.get("leverage").value
-        auto_leverage = c_map.get("auto_leverage").value
-        scale_leverage = c_map.get("scale_leverage").value / Decimal('100')
-        auto_order_amount_prc = c_map.get("auto_order_amount_prc").value / Decimal('100')
+        order_amount_prc = c_map.get("order_amount_prc").value / Decimal('100')
         position_mode = c_map.get("position_mode").value
         order_amount = c_map.get("order_amount").value
         order_refresh_time = c_map.get("order_refresh_time").value
@@ -32,6 +30,7 @@ def start(self):
         ts_activation_spread = c_map.get("ts_activation_spread").value / Decimal('100')
         ts_callback_rate = c_map.get("ts_callback_rate").value / Decimal('100')
         stop_loss_spread = c_map.get("stop_loss_spread").value / Decimal('100')
+        stop_loss_market = c_map.get("stop_loss_market").value
         close_position_order_type = c_map.get("close_position_order_type").value
         minimum_spread = c_map.get("minimum_spread").value / Decimal('100')
         price_ceiling = c_map.get("price_ceiling").value
@@ -80,9 +79,7 @@ def start(self):
         self.strategy = PerpetualMarketMakingStrategy(
             market_info=MarketTradingPairTuple(*maker_data),
             leverage=leverage,
-            scale_leverage=scale_leverage,
-            auto_leverage=auto_leverage,
-            auto_order_amount_prc=auto_order_amount_prc,
+            order_amount_prc=order_amount_prc,
             position_mode=position_mode,
             bid_spread=bid_spread,
             ask_spread=ask_spread,
@@ -94,6 +91,7 @@ def start(self):
             ts_activation_spread = ts_activation_spread,
             ts_callback_rate = ts_callback_rate,
             stop_loss_spread = stop_loss_spread,
+            stop_loss_market = stop_loss_market,
             close_position_order_type = close_position_order_type,
             order_level_spread=order_level_spread,
             order_level_amount=order_level_amount,
